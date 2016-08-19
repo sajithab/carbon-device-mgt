@@ -24,22 +24,19 @@ import org.apache.axis2.context.ConfigurationContextFactory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.wso2.carbon.context.CarbonContext;
-import org.wso2.carbon.device.mgt.common.Device;
-import org.wso2.carbon.device.mgt.common.DeviceIdentifier;
-import org.wso2.carbon.device.mgt.common.DeviceManagementException;
-import org.wso2.carbon.device.mgt.common.TransactionManagementException;
+import org.wso2.carbon.device.mgt.common.*;
 import org.wso2.carbon.device.mgt.common.app.mgt.Application;
 import org.wso2.carbon.device.mgt.common.app.mgt.ApplicationManagementException;
+import org.wso2.carbon.device.mgt.common.operation.mgt.Activity;
 import org.wso2.carbon.device.mgt.common.operation.mgt.Operation;
-import org.wso2.carbon.device.mgt.common.spi.DeviceManagementService;
+import org.wso2.carbon.device.mgt.common.operation.mgt.OperationManagementException;
 import org.wso2.carbon.device.mgt.core.DeviceManagementConstants;
-import org.wso2.carbon.device.mgt.core.DeviceManagementPluginRepository;
 import org.wso2.carbon.device.mgt.core.app.mgt.config.AppManagementConfig;
 import org.wso2.carbon.device.mgt.core.app.mgt.oauth.ServiceAuthenticator;
 import org.wso2.carbon.device.mgt.core.config.DeviceConfigurationManager;
 import org.wso2.carbon.device.mgt.core.config.identity.IdentityConfigurations;
 import org.wso2.carbon.device.mgt.core.dao.*;
-import org.wso2.carbon.device.mgt.core.internal.PluginInitializationListener;
+import org.wso2.carbon.device.mgt.core.internal.DeviceManagementDataHolder;
 import org.wso2.carbon.identity.oauth.stub.OAuthAdminServiceException;
 import org.wso2.carbon.identity.oauth.stub.OAuthAdminServiceStub;
 import org.wso2.carbon.identity.oauth.stub.dto.OAuthConsumerAppDTO;
@@ -52,13 +49,8 @@ import java.util.List;
 /**
  * Implements Application Manager interface
  */
-public class ApplicationManagerProviderServiceImpl implements ApplicationManagementProviderService,
-        PluginInitializationListener {
+public class ApplicationManagerProviderServiceImpl implements ApplicationManagementProviderService {
 
-    private ConfigurationContext configCtx;
-    private ServiceAuthenticator authenticator;
-    private String oAuthAdminServiceUrl;
-    private DeviceManagementPluginRepository pluginRepository;
     private DeviceDAO deviceDAO;
     private ApplicationDAO applicationDAO;
     private ApplicationMappingDAO applicationMappingDAO;
@@ -66,29 +58,13 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
     private static final String GET_APP_LIST_URL = "store/apis/assets/mobileapp?domain=carbon.super&page=1";
     private static final Log log = LogFactory.getLog(ApplicationManagerProviderServiceImpl.class);
 
-    public ApplicationManagerProviderServiceImpl(AppManagementConfig appManagementConfig,
-                                                 DeviceManagementPluginRepository pluginRepository) {
-
-        IdentityConfigurations identityConfig = DeviceConfigurationManager.getInstance().getDeviceManagementConfig().
-                getDeviceManagementConfigRepository().getIdentityConfigurations();
-        this.authenticator =
-                new ServiceAuthenticator(identityConfig.getAdminUsername(), identityConfig.getAdminPassword());
-        this.oAuthAdminServiceUrl =
-                identityConfig.getServerUrl() + DeviceManagementConstants.AppManagement.OAUTH_ADMIN_SERVICE;
-        try {
-            this.configCtx = ConfigurationContextFactory.createConfigurationContextFromFileSystem(null, null);
-        } catch (AxisFault e) {
-            throw new IllegalArgumentException("Error occurred while initializing Axis2 Configuration Context. " +
-                    "Please check if an appropriate axis2.xml is provided", e);
-        }
-        this.pluginRepository = pluginRepository;
+    public ApplicationManagerProviderServiceImpl(AppManagementConfig appManagementConfig) {
         this.deviceDAO = DeviceManagementDAOFactory.getDeviceDAO();
         this.applicationDAO = DeviceManagementDAOFactory.getApplicationDAO();
         this.applicationMappingDAO = DeviceManagementDAOFactory.getApplicationMappingDAO();
     }
 
-    ApplicationManagerProviderServiceImpl(DeviceManagementPluginRepository pluginRepository) {
-        this.pluginRepository = pluginRepository;
+    ApplicationManagerProviderServiceImpl() {
         this.deviceDAO = DeviceManagementDAOFactory.getDeviceDAO();
         this.applicationDAO = DeviceManagementDAOFactory.getApplicationDAO();
         this.applicationMappingDAO = DeviceManagementDAOFactory.getApplicationMappingDAO();
@@ -113,67 +89,110 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
     }
 
     @Override
-    public void installApplication(Operation operation, List<DeviceIdentifier> deviceIds)
+    public Activity installApplicationForDevices(Operation operation, List<DeviceIdentifier> deviceIds)
+            throws ApplicationManagementException {
+        try {
+            //TODO: Fix this properly later adding device type to be passed in when the task manage executes "addOperations()"
+            String type = null;
+            if (deviceIds.size() > 0) {
+                type = deviceIds.get(0).getType().toLowerCase();
+            }
+            Activity activity = DeviceManagementDataHolder.getInstance().getDeviceManagementProvider().
+                    addOperation(type, operation, deviceIds);
+            DeviceManagementDataHolder.getInstance().getDeviceManagementProvider().notifyOperationToDevices
+                    (operation, deviceIds);
+            return activity;
+        } catch (OperationManagementException e) {
+            throw new ApplicationManagementException("Error in add operation at app installation", e);
+        } catch (DeviceManagementException e) {
+            throw new ApplicationManagementException("Error in notify operation at app installation", e);
+        }
+    }
+
+    @Override
+    public Activity installApplicationForUsers(Operation operation, List<String> userNameList)
             throws ApplicationManagementException {
 
-        for (DeviceIdentifier deviceId : deviceIds) {
-            DeviceManagementService dms =
-                    this.getPluginRepository().getDeviceManagementService(deviceId.getType());
-            dms.installApplication(operation, deviceIds);
-        }
-    }
-
-    public void updateInstalledApplicationListOfDevice(
-            DeviceIdentifier deviceIdentifier, List<Application> applications) throws ApplicationManagementException {
-    }
-
-    private OAuthConsumerAppDTO getAppInfo() throws ApplicationManagementException {
-        OAuthConsumerAppDTO appInfo = null;
+        String userName = null;
         try {
-            OAuthAdminServiceStub oAuthAdminServiceStub =
-                    new OAuthAdminServiceStub(configCtx, oAuthAdminServiceUrl);
-            authenticator.authenticate(oAuthAdminServiceStub._getServiceClient());
+            List<Device> deviceList;
+            List<DeviceIdentifier> deviceIdentifierList = new ArrayList<>();
+            DeviceIdentifier deviceIdentifier;
 
-            try {
-                appInfo = oAuthAdminServiceStub.getOAuthApplicationDataByAppName(
-                        DeviceManagementConstants.AppManagement.OAUTH_APPLICATION_NAME);
+
+            for (String user : userNameList) {
+                userName = user;
+                deviceList = DeviceManagementDataHolder.getInstance().getDeviceManagementProvider().getDevicesOfUser
+                        (user);
+                for (Device device : deviceList) {
+                    deviceIdentifier = new DeviceIdentifier();
+                    deviceIdentifier.setId(Integer.toString(device.getId()));
+                    deviceIdentifier.setType(device.getType());
+
+                    deviceIdentifierList.add(deviceIdentifier);
+                }
             }
-            //application doesn't exist. Due to the way getOAuthApplicationDataByAppName has been
-            //implemented, it throws an AxisFault if the App doesn't exist. Hence the catch.
-            catch (AxisFault fault) {
-                oAuthAdminServiceStub.registerOAuthApplicationData(this.getRequestDTO());
-                appInfo = oAuthAdminServiceStub.getOAuthApplicationDataByAppName(
-                        DeviceManagementConstants.AppManagement.OAUTH_APPLICATION_NAME);
+            //TODO: Fix this properly later adding device type to be passed in when the task manage executes "addOperations()"
+            String type = null;
+            if (deviceIdentifierList.size() > 0) {
+                type = deviceIdentifierList.get(0).getType();
             }
-        } catch (RemoteException e) {
-            handleException("Error occurred while retrieving app info", e);
-        } catch (OAuthAdminServiceException e) {
-            handleException("Error occurred while invoking OAuth admin service stub", e);
+
+            return DeviceManagementDataHolder.getInstance().getDeviceManagementProvider()
+                    .addOperation(type, operation, deviceIdentifierList);
+        } catch (DeviceManagementException e) {
+            throw new ApplicationManagementException("Error in get devices for user: " + userName +
+                    " in app installation", e);
+
+        } catch (OperationManagementException e) {
+            throw new ApplicationManagementException("Error in add operation at app installation", e);
+
         }
-        return appInfo;
     }
 
-    private OAuthConsumerAppDTO getRequestDTO() {
-        OAuthConsumerAppDTO appDTO = new OAuthConsumerAppDTO();
-        appDTO.setApplicationName(DeviceManagementConstants.AppManagement.OAUTH_APPLICATION_NAME);
-        appDTO.setGrantTypes(
-                DeviceManagementConstants.AppManagement.OAUTH2_GRANT_TYPE_CLIENT_CREDENTIALS);
-        appDTO.setOAuthVersion(DeviceManagementConstants.AppManagement.OAUTH_VERSION_2);
-        return appDTO;
-    }
+    @Override
+    public Activity installApplicationForUserRoles(Operation operation, List<String> userRoleList)
+            throws ApplicationManagementException {
 
-    private void handleException(String msg, Exception e) throws ApplicationManagementException {
-        log.error(msg, e);
-        throw new ApplicationManagementException(msg, e);
-    }
+        String userRole = null;
+        try {
+            List<Device> deviceList;
+            List<DeviceIdentifier> deviceIdentifierList = new ArrayList<>();
+            DeviceIdentifier deviceIdentifier;
 
-    public DeviceManagementPluginRepository getPluginRepository() {
-        return pluginRepository;
+            for (String role : userRoleList) {
+                userRole = role;
+                deviceList = DeviceManagementDataHolder.getInstance().getDeviceManagementProvider()
+                        .getAllDevicesOfRole(userRole);
+                for (Device device : deviceList) {
+                    deviceIdentifier = new DeviceIdentifier();
+                    deviceIdentifier.setId(Integer.toString(device.getId()));
+                    deviceIdentifier.setType(device.getType());
+
+                    deviceIdentifierList.add(deviceIdentifier);
+                }
+            }
+            //TODO: Fix this properly later adding device type to be passed in when the task manage executes "addOperations()"
+            String type = null;
+            if (deviceIdentifierList.size() > 0) {
+                type = deviceIdentifierList.get(0).getType();
+            }
+            return DeviceManagementDataHolder.getInstance().getDeviceManagementProvider().addOperation(type, operation,
+                    deviceIdentifierList);
+        } catch (DeviceManagementException e) {
+            throw new ApplicationManagementException("Error in get devices for user role " + userRole +
+                    " in app installation", e);
+
+        } catch (OperationManagementException e) {
+            throw new ApplicationManagementException("Error in add operation at app installation", e);
+
+        }
     }
 
     @Override
     public void updateApplicationListInstalledInDevice(
-            DeviceIdentifier deviceIdentifier, List<Application> applications) throws ApplicationManagementException {
+            DeviceIdentifier deviceIdentifier,
+            List<Application> applications) throws ApplicationManagementException {
         List<Application> installedAppList = getApplicationListForDevice(deviceIdentifier);
         try {
             int tenantId = CarbonContext.getThreadLocalCarbonContext().getTenantId();
@@ -188,7 +207,7 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
                 log.debug("num of apps installed:" + installedAppList.size());
             }
             List<Application> appsToAdd = new ArrayList<>();
-            List<Integer> appIdsToRemove = new ArrayList<>();
+            List<Integer> appIdsToRemove = new ArrayList<>(installedAppList.size());
 
             for (Application installedApp : installedAppList) {
                 if (!applications.contains(installedApp)) {
@@ -198,13 +217,14 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
                     appIdsToRemove.add(installedApp.getId());
                 }
             }
-
+            applicationMappingDAO.removeApplicationMapping(device.getId(), appIdsToRemove, tenantId);
             Application installedApp;
             List<Integer> applicationIds = new ArrayList<>();
 
             for (Application application : applications) {
                 if (!installedAppList.contains(application)) {
-                    installedApp = applicationDAO.getApplication(application.getApplicationIdentifier(), tenantId);
+                    installedApp = applicationDAO.getApplication(application.getApplicationIdentifier(),
+                            application.getVersion(), tenantId);
                     if (installedApp == null) {
                         appsToAdd.add(application);
                     } else {
@@ -225,7 +245,7 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
             if (log.isDebugEnabled()) {
                 log.debug("num of remove app Ids:" + appIdsToRemove.size());
             }
-            applicationMappingDAO.removeApplicationMapping(device.getId(), appIdsToRemove, tenantId);
+
             DeviceManagementDAOFactory.commitTransaction();
         } catch (DeviceManagementDAOException e) {
             DeviceManagementDAOFactory.rollbackTransaction();
@@ -245,6 +265,13 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
             int tenantId = CarbonContext.getThreadLocalCarbonContext().getTenantId();
             DeviceManagementDAOFactory.openConnection();
             device = deviceDAO.getDevice(deviceId, tenantId);
+            if (device == null) {
+                if (log.isDebugEnabled()) {
+                    log.debug("No device is found upon the device identifier '" + deviceId.getId() +
+                            "' and type '" + deviceId.getType() + "'. Therefore returning null");
+                }
+                return null;
+            }
             return applicationDAO.getInstalledApplications(device.getId());
         } catch (DeviceManagementDAOException e) {
             throw new ApplicationManagementException("Error occurred while fetching the Application List of '" +
@@ -253,26 +280,6 @@ public class ApplicationManagerProviderServiceImpl implements ApplicationManagem
             throw new ApplicationManagementException("Error occurred while opening a connection to the data source", e);
         } finally {
             DeviceManagementDAOFactory.closeConnection();
-        }
-    }
-
-    @Override
-    public void registerDeviceManagementService(DeviceManagementService deviceManagementService) {
-        try {
-            pluginRepository.addDeviceManagementProvider(deviceManagementService);
-        } catch (DeviceManagementException e) {
-            log.error("Error occurred while registering device management plugin '" +
-                    deviceManagementService.getType() + "'", e);
-        }
-    }
-
-    @Override
-    public void unregisterDeviceManagementService(DeviceManagementService deviceManagementService) {
-        try {
-            pluginRepository.removeDeviceManagementProvider(deviceManagementService);
-        } catch (DeviceManagementException e) {
-            log.error("Error occurred while un-registering device management plugin '" +
-                    deviceManagementService.getType() + "'", e);
         }
     }
 

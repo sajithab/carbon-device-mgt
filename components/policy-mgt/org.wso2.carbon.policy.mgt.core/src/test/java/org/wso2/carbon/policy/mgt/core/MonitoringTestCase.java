@@ -19,6 +19,7 @@
 
 package org.wso2.carbon.policy.mgt.core;
 
+import junit.framework.Assert;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.testng.annotations.BeforeClass;
@@ -31,12 +32,8 @@ import org.wso2.carbon.device.mgt.core.internal.DeviceManagementDataHolder;
 import org.wso2.carbon.device.mgt.core.operation.mgt.OperationManagerImpl;
 import org.wso2.carbon.device.mgt.core.service.DeviceManagementProviderService;
 import org.wso2.carbon.device.mgt.core.service.DeviceManagementProviderServiceImpl;
-import org.wso2.carbon.ntask.common.TaskException;
-import org.wso2.carbon.ntask.core.service.TaskService;
-import org.wso2.carbon.ntask.core.service.impl.TaskServiceImpl;
 import org.wso2.carbon.policy.mgt.common.Policy;
 import org.wso2.carbon.policy.mgt.common.PolicyManagementException;
-import org.wso2.carbon.policy.mgt.common.PolicyMonitoringTaskException;
 import org.wso2.carbon.policy.mgt.common.monitor.PolicyComplianceException;
 import org.wso2.carbon.policy.mgt.core.internal.PolicyManagementDataHolder;
 import org.wso2.carbon.policy.mgt.core.mgt.MonitoringManager;
@@ -62,13 +59,25 @@ public class MonitoringTestCase extends BasePolicyManagementDAOTest {
     }
 
     @Test
-    public void testMonitorDao() throws PolicyManagementException, DeviceManagementException {
+    public void testMonitorDao() {
 
         DeviceManagementProviderService service = new DeviceManagementProviderServiceImpl();
         PolicyManagerService policyManagerService = new PolicyManagerServiceImpl();
 
-        List<Policy> policies = policyManagerService.getPolicies(ANDROID);
-        List<Device> devices = service.getAllDevices(ANDROID);
+        List<Policy> policies = null;
+        List<Device> devices = null;
+        try {
+            policies = policyManagerService.getPolicies(ANDROID);
+            devices = service.getAllDevices(ANDROID);
+        } catch (PolicyManagementException e) {
+            log.error("Error occurred while retrieving the list of policies defined against the device type '" +
+                    ANDROID + "'", e);
+            Assert.fail();
+        } catch (DeviceManagementException e) {
+            log.error("Error occurred while retrieving the list of devices pertaining to the type '" +
+                    ANDROID + "'", e);
+            Assert.fail();
+        }
 
         for (Policy policy : policies) {
             log.debug("Policy Name : " + policy.getPolicyName());
@@ -91,7 +100,10 @@ public class MonitoringTestCase extends BasePolicyManagementDAOTest {
     public void getDeviceAppliedPolicy() throws PolicyManagementException {
 
         PolicyManager manager = new PolicyManagerImpl();
-        Policy policy = manager.getAppliedPolicyToDevice(identifier);
+        Policy policy = null;
+
+        policy = manager.getAppliedPolicyToDevice(identifier);
+
 
         if (policy != null) {
 
@@ -111,7 +123,10 @@ public class MonitoringTestCase extends BasePolicyManagementDAOTest {
         log.debug("Compliance operations adding started.");
 
         PolicyManager manager = new PolicyManagerImpl();
-        Policy policy = manager.getAppliedPolicyToDevice(identifier);
+        Policy policy = null;
+
+        policy = manager.getAppliedPolicyToDevice(identifier);
+
         OperationManager operationManager = new OperationManagerImpl();
 
         DeviceManagementDataHolder.getInstance().setOperationManager(operationManager);
@@ -127,7 +142,7 @@ public class MonitoringTestCase extends BasePolicyManagementDAOTest {
         DeviceManagementProviderService service = new DeviceManagementProviderServiceImpl();
         List<Device> devices = service.getAllDevices(ANDROID);
 
-        monitoringManager.addMonitoringOperation(devices);
+        // monitoringManager.addMonitoringOperation(devices);
 
         log.debug("Compliance operations adding done.");
 
@@ -158,9 +173,11 @@ public class MonitoringTestCase extends BasePolicyManagementDAOTest {
         monitoringServiceTest.notifyDevices(devices);
 
         PolicyManager manager = new PolicyManagerImpl();
-        Policy policy = manager.getAppliedPolicyToDevice(identifier);
+        Policy policy = null;
 
-        if(policy != null) {
+        policy = manager.getAppliedPolicyToDevice(identifier);
+
+        if (policy != null) {
             Object ob = new Object();
 
             monitoringServiceTest.checkPolicyCompliance(identifier, policy, ob);
@@ -192,7 +209,9 @@ public class MonitoringTestCase extends BasePolicyManagementDAOTest {
         log.debug(identifier.getId());
         log.debug(identifier.getType());
 
+
         monitoringManager.checkPolicyCompliance(identifier, ob);
+
 
     }
 

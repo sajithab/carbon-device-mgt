@@ -18,19 +18,28 @@
 
 package org.wso2.carbon.device.mgt.core.internal;
 
+import org.wso2.carbon.apimgt.impl.APIManagerConfiguration;
 import org.wso2.carbon.device.mgt.common.app.mgt.ApplicationManager;
+import org.wso2.carbon.device.mgt.common.authorization.DeviceAccessAuthorizationService;
 import org.wso2.carbon.device.mgt.common.license.mgt.LicenseManager;
 import org.wso2.carbon.device.mgt.common.operation.mgt.OperationManager;
 import org.wso2.carbon.device.mgt.core.app.mgt.config.AppManagementConfig;
 import org.wso2.carbon.device.mgt.core.config.license.LicenseConfig;
+import org.wso2.carbon.device.mgt.core.push.notification.mgt.PushNotificationProviderRepository;
 import org.wso2.carbon.device.mgt.core.service.DeviceManagementProviderService;
+import org.wso2.carbon.device.mgt.core.service.GroupManagementProviderService;
+import org.wso2.carbon.email.sender.core.service.EmailSenderService;
+import org.wso2.carbon.ntask.core.service.TaskService;
 import org.wso2.carbon.registry.core.service.RegistryService;
 import org.wso2.carbon.user.core.service.RealmService;
 import org.wso2.carbon.user.core.tenant.TenantManager;
 import org.wso2.carbon.utils.ConfigurationContextService;
 
+import java.util.HashMap;
+
 public class DeviceManagementDataHolder {
 
+    private static DeviceManagementDataHolder thisInstance = new DeviceManagementDataHolder();
     private RealmService realmService;
     private TenantManager tenantManager;
     private DeviceManagementProviderService deviceManagerProvider;
@@ -41,8 +50,22 @@ public class DeviceManagementDataHolder {
     private AppManagementConfig appManagerConfig;
     private OperationManager operationManager;
     private ConfigurationContextService configurationContextService;
+    private HashMap<String,Boolean> requireDeviceAuthorization = new HashMap<>();
+    private DeviceAccessAuthorizationService deviceAccessAuthorizationService;
+    private GroupManagementProviderService groupManagementProviderService;
+    private TaskService taskService;
+    private EmailSenderService emailSenderService;
+    private PushNotificationProviderRepository pushNotificationProviderRepository;
 
-    private static DeviceManagementDataHolder thisInstance = new DeviceManagementDataHolder();
+    public APIManagerConfiguration getApiManagerConfiguration() {
+        return apiManagerConfiguration;
+    }
+
+    public void setApiManagerConfiguration(APIManagerConfiguration apiManagerConfiguration) {
+        this.apiManagerConfiguration = apiManagerConfiguration;
+    }
+
+    private APIManagerConfiguration apiManagerConfiguration;
 
     private DeviceManagementDataHolder() {}
 
@@ -62,15 +85,15 @@ public class DeviceManagementDataHolder {
         this.setTenantManager(realmService);
     }
 
+    public TenantManager getTenantManager() {
+        return tenantManager;
+    }
+
     private void setTenantManager(RealmService realmService) {
         if (realmService == null) {
             throw new IllegalStateException("Realm service is not initialized properly");
         }
         this.tenantManager = realmService.getTenantManager();
-    }
-
-    public TenantManager getTenantManager() {
-        return tenantManager;
     }
 
     public DeviceManagementProviderService getDeviceManagementProvider() {
@@ -79,6 +102,15 @@ public class DeviceManagementDataHolder {
 
     public void setDeviceManagementProvider(DeviceManagementProviderService deviceManagerProvider) {
         this.deviceManagerProvider = deviceManagerProvider;
+    }
+
+    public GroupManagementProviderService getGroupManagementProviderService() {
+        return groupManagementProviderService;
+    }
+
+    public void setGroupManagementProviderService(
+            GroupManagementProviderService groupManagementProviderService) {
+        this.groupManagementProviderService = groupManagementProviderService;
     }
 
     public RegistryService getRegistryService() {
@@ -141,6 +173,49 @@ public class DeviceManagementDataHolder {
 
     public void setConfigurationContextService(ConfigurationContextService configurationContextService) {
         this.configurationContextService = configurationContextService;
+    }
+
+    public void setRequireDeviceAuthorization(String pluginType, boolean requireAuthentication) {
+        requireDeviceAuthorization.put(pluginType,requireAuthentication);
+    }
+
+    public boolean requireDeviceAuthorization(String pluginType) {
+        return requireDeviceAuthorization.get(pluginType);
+    }
+
+    public DeviceAccessAuthorizationService getDeviceAccessAuthorizationService() {
+        return deviceAccessAuthorizationService;
+    }
+
+    public void setDeviceAccessAuthorizationService(
+            DeviceAccessAuthorizationService deviceAccessAuthorizationService) {
+        this.deviceAccessAuthorizationService = deviceAccessAuthorizationService;
+    }
+
+
+    public TaskService getTaskService() {
+        return taskService;
+    }
+
+    public void setTaskService(TaskService taskService) {
+        this.taskService = taskService;
+    }
+
+    public EmailSenderService getEmailSenderService() {
+        return emailSenderService;
+    }
+
+    public void setEmailSenderService(EmailSenderService emailSenderService) {
+        this.emailSenderService = emailSenderService;
+    }
+
+    public void setPushNotificationProviderRepository(
+            PushNotificationProviderRepository pushNotificationProviderRepository) {
+        this.pushNotificationProviderRepository = pushNotificationProviderRepository;
+    }
+
+    public PushNotificationProviderRepository getPushNotificationProviderRepository() {
+        return pushNotificationProviderRepository;
     }
 
 }

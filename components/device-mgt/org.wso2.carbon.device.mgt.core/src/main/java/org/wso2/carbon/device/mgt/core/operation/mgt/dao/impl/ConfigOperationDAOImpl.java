@@ -35,7 +35,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ConfigOperationDAOImpl extends OperationDAOImpl {
+public class ConfigOperationDAOImpl extends GenericOperationDAOImpl {
 
     private static final Log log = LogFactory.getLog(ConfigOperationDAOImpl.class);
 
@@ -82,8 +82,8 @@ public class ConfigOperationDAOImpl extends OperationDAOImpl {
         try {
             super.updateOperation(operation);
             Connection connection = OperationManagementDAOFactory.getConnection();
-            stmt = connection.prepareStatement("UPDATE DM_CONFIG_OPERATION O SET O.OPERATION_CONFIG = ? " +
-                    "WHERE O.OPERATION_ID = ?");
+            stmt = connection.prepareStatement("UPDATE DM_CONFIG_OPERATION SET OPERATION_CONFIG = ? " +
+                    "WHERE OPERATION_ID = ?");
             bao = new ByteArrayOutputStream();
             oos = new ObjectOutputStream(bao);
             oos.writeObject(operation);
@@ -164,7 +164,7 @@ public class ConfigOperationDAOImpl extends OperationDAOImpl {
         try {
             Connection conn = OperationManagementDAOFactory.getConnection();
             String sql = "SELECT co.OPERATION_ID, co.OPERATION_CONFIG FROM DM_CONFIG_OPERATION co " +
-                    "INNER JOIN (SELECT * FROM DM_ENROLMENT_OPERATION_MAPPING WHERE ENROLMENT_ID = ? " +
+                    "INNER JOIN (SELECT * FROM DM_ENROLMENT_OP_MAPPING WHERE ENROLMENT_ID = ? " +
                     "AND STATUS = ?) dm ON dm.OPERATION_ID = co.OPERATION_ID";
 
             stmt = conn.prepareStatement(sql);

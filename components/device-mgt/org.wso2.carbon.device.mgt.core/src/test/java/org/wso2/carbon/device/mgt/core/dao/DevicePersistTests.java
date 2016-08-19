@@ -36,15 +36,17 @@ import java.sql.*;
 
 public class DevicePersistTests extends BaseDeviceManagementTest {
 
-    DeviceDAO deviceDAO = DeviceManagementDAOFactory.getDeviceDAO();
-    DeviceTypeDAO deviceTypeDAO = DeviceManagementDAOFactory.getDeviceTypeDAO();
+    DeviceDAO deviceDAO;
+    DeviceTypeDAO deviceTypeDAO;
 
     private static final Log log = LogFactory.getLog(DevicePersistTests.class);
 
     @BeforeClass
     @Override
     public void init() throws Exception {
-        initDatSource();
+        initDataSource();
+        deviceDAO = DeviceManagementDAOFactory.getDeviceDAO();
+        deviceTypeDAO = DeviceManagementDAOFactory.getDeviceTypeDAO();
     }
 
     @Test
@@ -52,7 +54,7 @@ public class DevicePersistTests extends BaseDeviceManagementTest {
         DeviceType deviceType = TestDataHolder.generateDeviceTypeData(TestDataHolder.TEST_DEVICE_TYPE);
         try {
             DeviceManagementDAOFactory.beginTransaction();
-            deviceTypeDAO.addDeviceType(deviceType);
+            deviceTypeDAO.addDeviceType(deviceType, TestDataHolder.SUPER_TENANT_ID, true);
         } catch (DeviceManagementDAOException e) {
             DeviceManagementDAOFactory.rollbackTransaction();
             String msg = "Error occurred while adding device type '" + deviceType.getName() + "'";

@@ -26,9 +26,7 @@ import org.wso2.carbon.device.mgt.core.dao.DeviceManagementDAOException;
 import org.wso2.carbon.device.mgt.core.dao.DeviceManagementDAOFactory;
 import org.wso2.carbon.device.mgt.core.dao.util.DeviceManagementDAOUtil;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.ObjectInputStream;
+import java.io.*;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,12 +41,14 @@ public class ApplicationDAOImpl implements ApplicationDAO {
         Connection conn;
         PreparedStatement stmt = null;
         ResultSet rs = null;
+        ByteArrayOutputStream bao = null;
+        ObjectOutputStream oos = null;
         int applicationId = -1;
         try {
             conn = this.getConnection();
             stmt = conn.prepareStatement("INSERT INTO DM_APPLICATION (NAME, PLATFORM, CATEGORY, " +
-                    "VERSION, TYPE, LOCATION_URL, IMAGE_URL, TENANT_ID,APP_PROPERTIES,APP_IDENTIFIER) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)");
+                    "VERSION, TYPE, LOCATION_URL, IMAGE_URL, TENANT_ID, APP_PROPERTIES, APP_IDENTIFIER, MEMORY_USAGE, IS_ACTIVE) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             stmt.setString(1, application.getName());
             stmt.setString(2, application.getPlatform());
@@ -58,8 +58,15 @@ public class ApplicationDAOImpl implements ApplicationDAO {
             stmt.setString(6, application.getLocationUrl());
             stmt.setString(7, application.getImageUrl());
             stmt.setInt(8, tenantId);
-            stmt.setObject(9, application.getAppProperties());
+
+            bao = new ByteArrayOutputStream();
+            oos = new ObjectOutputStream(bao);
+            oos.writeObject(application.getAppProperties());
+            stmt.setBytes(9, bao.toByteArray());
+
             stmt.setString(10, application.getApplicationIdentifier());
+            stmt.setInt(11, application.getMemoryUsage());
+            stmt.setBoolean(12, application.isActive());
             stmt.execute();
 
             rs = stmt.getGeneratedKeys();
@@ -70,7 +77,23 @@ public class ApplicationDAOImpl implements ApplicationDAO {
         } catch (SQLException e) {
             throw new DeviceManagementDAOException("Error occurred while adding application '" +
                     application.getName() + "'", e);
+        } catch (IOException e) {
+            throw new DeviceManagementDAOException("Error occurred while serializing application properties object", e);
         } finally {
+            if (bao != null) {
+                try {
+                    bao.close();
+                } catch (IOException e) {
+                    log.warn("Error occurred while closing ByteArrayOutputStream", e);
+                }
+            }
+            if (oos != null) {
+                try {
+                    oos.close();
+                } catch (IOException e) {
+                    log.warn("Error occurred while closing ObjectOutputStream", e);
+                }
+            }
             DeviceManagementDAOUtil.cleanupResources(stmt, rs);
         }
     }
@@ -81,12 +104,14 @@ public class ApplicationDAOImpl implements ApplicationDAO {
         Connection conn;
         PreparedStatement stmt = null;
         ResultSet rs;
+        ByteArrayOutputStream bao = null;
+        ObjectOutputStream oos = null;
         List<Integer> applicationIds = new ArrayList<>();
         try {
             conn = this.getConnection();
             stmt = conn.prepareStatement("INSERT INTO DM_APPLICATION (NAME, PLATFORM, CATEGORY, " +
-                    "VERSION, TYPE, LOCATION_URL, IMAGE_URL, TENANT_ID,APP_PROPERTIES,APP_IDENTIFIER) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?)", PreparedStatement.RETURN_GENERATED_KEYS);
+                    "VERSION, TYPE, LOCATION_URL, IMAGE_URL, TENANT_ID,APP_PROPERTIES, APP_IDENTIFIER, MEMORY_USAGE, IS_ACTIVE) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", new String[]{"id"});
 
 
             for (Application application : applications) {
@@ -99,8 +124,15 @@ public class ApplicationDAOImpl implements ApplicationDAO {
                 stmt.setString(6, application.getLocationUrl());
                 stmt.setString(7, application.getImageUrl());
                 stmt.setInt(8, tenantId);
-                stmt.setObject(9, application.getAppProperties());
+
+                bao = new ByteArrayOutputStream();
+                oos = new ObjectOutputStream(bao);
+                oos.writeObject(application.getAppProperties());
+                stmt.setBytes(9, bao.toByteArray());
+
                 stmt.setString(10, application.getApplicationIdentifier());
+                stmt.setInt(11, application.getMemoryUsage());
+                stmt.setBoolean(12, application.isActive());
                 stmt.executeUpdate();
 
                 rs = stmt.getGeneratedKeys();
@@ -111,7 +143,23 @@ public class ApplicationDAOImpl implements ApplicationDAO {
             return applicationIds;
         } catch (SQLException e) {
             throw new DeviceManagementDAOException("Error occurred while adding bulk application list", e);
+        } catch (IOException e) {
+            throw new DeviceManagementDAOException("Error occurred while serializing application properties object", e);
         } finally {
+            if (bao != null) {
+                try {
+                    bao.close();
+                } catch (IOException e) {
+                    log.warn("Error occurred while closing ByteArrayOutputStream", e);
+                }
+            }
+            if (oos != null) {
+                try {
+                    oos.close();
+                } catch (IOException e) {
+                    log.warn("Error occurred while closing ObjectOutputStream", e);
+                }
+            }
             DeviceManagementDAOUtil.cleanupResources(stmt, null);
         }
     }
@@ -126,7 +174,7 @@ public class ApplicationDAOImpl implements ApplicationDAO {
             conn = this.getConnection();
             conn.setAutoCommit(false);
             stmt = conn.prepareStatement("DELETE DM_APPLICATION WHERE APP_IDENTIFIER = ? AND TENANT_ID = ?",
-                    Statement.RETURN_GENERATED_KEYS);
+                    new String[]{"id"});
 
             for (Application app : apps) {
                 stmt.setString(1, app.getApplicationIdentifier());
@@ -162,7 +210,7 @@ public class ApplicationDAOImpl implements ApplicationDAO {
         try {
             conn = this.getConnection();
             stmt = conn.prepareStatement("SELECT ID, NAME, APP_IDENTIFIER, PLATFORM, CATEGORY, VERSION, TYPE, " +
-                    "LOCATION_URL, IMAGE_URL, APP_PROPERTIES, TENANT_ID FROM DM_APPLICATION WHERE APP_IDENTIFIER = ? " +
+                    "LOCATION_URL, IMAGE_URL, APP_PROPERTIES, MEMORY_USAGE, IS_ACTIVE, TENANT_ID FROM DM_APPLICATION WHERE APP_IDENTIFIER = ? " +
                     "AND TENANT_ID = ?");
             stmt.setString(1, identifier);
             stmt.setInt(2, tenantId);
@@ -180,6 +228,34 @@ public class ApplicationDAOImpl implements ApplicationDAO {
         }
     }
 
+    @Override
+    public Application getApplication(String identifier, String version, int tenantId) throws DeviceManagementDAOException {
+        Connection conn;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+        Application application = null;
+        try {
+            conn = this.getConnection();
+            stmt = conn.prepareStatement("SELECT ID, NAME, APP_IDENTIFIER, PLATFORM, CATEGORY, VERSION, TYPE, " +
+                    "LOCATION_URL, IMAGE_URL, APP_PROPERTIES, MEMORY_USAGE, IS_ACTIVE, TENANT_ID FROM DM_APPLICATION WHERE APP_IDENTIFIER = ? " +
+                    "AND VERSION = ?  AND TENANT_ID = ?");
+            stmt.setString(1, identifier);
+            stmt.setString(2, version);
+            stmt.setInt(3, tenantId);
+            rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                application = this.loadApplication(rs);
+            }
+            return application;
+        } catch (SQLException e) {
+            throw new DeviceManagementDAOException("Error occurred while retrieving application application '" +
+                    identifier + "' and version '" + version + "'.", e);
+        } finally {
+            DeviceManagementDAOUtil.cleanupResources(stmt, rs);
+        }
+    }
+
     private Connection getConnection() throws SQLException {
         return DeviceManagementDAOFactory.getConnection();
     }
@@ -190,17 +266,18 @@ public class ApplicationDAOImpl implements ApplicationDAO {
         PreparedStatement stmt = null;
         List<Application> applications = new ArrayList<>();
         Application application;
+        ResultSet rs = null;
         try {
             conn = this.getConnection();
             stmt = conn.prepareStatement("Select ID, NAME, APP_IDENTIFIER, PLATFORM, CATEGORY, VERSION, TYPE, " +
-                    "LOCATION_URL, IMAGE_URL, APP_PROPERTIES, TENANT_ID From DM_APPLICATION app  " +
+                    "LOCATION_URL, IMAGE_URL, APP_PROPERTIES, MEMORY_USAGE, IS_ACTIVE, TENANT_ID From DM_APPLICATION app  " +
                     "INNER JOIN " +
                     "(Select APPLICATION_ID  From DM_DEVICE_APPLICATION_MAPPING WHERE  DEVICE_ID=?) APPMAP " +
                     "ON " +
                     "app.ID = APPMAP.APPLICATION_ID ");
 
             stmt.setInt(1, deviceId);
-            ResultSet rs = stmt.executeQuery();
+            rs = stmt.executeQuery();
 
             while (rs.next()) {
                 application = loadApplication(rs);
@@ -210,7 +287,7 @@ public class ApplicationDAOImpl implements ApplicationDAO {
             throw new DeviceManagementDAOException("SQL Error occurred while retrieving the list of Applications " +
                     "installed in device id '" + deviceId, e);
         } finally {
-            DeviceManagementDAOUtil.cleanupResources(stmt, null);
+            DeviceManagementDAOUtil.cleanupResources(stmt, rs);
         }
         return applications;
     }
@@ -239,6 +316,8 @@ public class ApplicationDAOImpl implements ApplicationDAO {
             application.setLocationUrl(rs.getString("LOCATION_URL"));
             application.setPlatform(rs.getString("PLATFORM"));
             application.setVersion(rs.getString("VERSION"));
+            application.setMemoryUsage(rs.getInt("MEMORY_USAGE"));
+            application.setActive(rs.getBoolean("IS_ACTIVE"));
             application.setApplicationIdentifier(rs.getString("APP_IDENTIFIER"));
 
         } catch (IOException e) {

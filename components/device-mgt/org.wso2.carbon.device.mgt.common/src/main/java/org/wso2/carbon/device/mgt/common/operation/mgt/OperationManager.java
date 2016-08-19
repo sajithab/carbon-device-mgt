@@ -17,8 +17,7 @@
  */
 package org.wso2.carbon.device.mgt.common.operation.mgt;
 
-import org.wso2.carbon.device.mgt.common.DeviceIdentifier;
-import org.wso2.carbon.device.mgt.common.DeviceManagementException;
+import org.wso2.carbon.device.mgt.common.*;
 
 import java.util.List;
 
@@ -34,41 +33,63 @@ public interface OperationManager {
      * @param operation Operation to be added
      * @param devices   List of DeviceIdentifiers to execute the operation
      * @throws OperationManagementException If some unusual behaviour is observed while adding the
-     * operation
+     *                                      operation
      */
-    public int addOperation(Operation operation, List<DeviceIdentifier> devices) throws OperationManagementException;
+    Activity addOperation(Operation operation, List<DeviceIdentifier> devices) throws OperationManagementException;
 
     /**
      * Method to retrieve the list of all operations to a device.
      *
-     * @param deviceId DeviceIdentifier of the device
+     * @param deviceId
      * @throws OperationManagementException If some unusual behaviour is observed while fetching the
-     * operation list.
+     *                                      operation list.
      */
-    public List<? extends Operation> getOperations(DeviceIdentifier deviceId) throws OperationManagementException;
+    List<? extends Operation> getOperations(DeviceIdentifier deviceId) throws OperationManagementException;
+
+    /**
+     * Method to retrieve all the operations applied to a device with pagination support.
+     *
+     * @param deviceId       DeviceIdentifier of the device
+     * @param request        PaginationRequest object holding the data for pagination
+     * @return PaginationResult - Result including the required parameters necessary to do pagination.
+     * @throws OperationManagementException If some unusual behaviour is observed while fetching the
+     *                                      operation list.
+     */
+    PaginationResult getOperations(DeviceIdentifier deviceId, PaginationRequest request) throws OperationManagementException;
 
     /**
      * Method to retrieve the list of available operations to a device.
      *
      * @param deviceId DeviceIdentifier of the device
      * @throws OperationManagementException If some unusual behaviour is observed while fetching the
-     * operation list.
+     *                                      operation list.
      */
-    public List<? extends Operation> getPendingOperations(
+    List<? extends Operation> getPendingOperations(
             DeviceIdentifier deviceId) throws OperationManagementException;
 
-    public Operation getNextPendingOperation(DeviceIdentifier deviceId) throws OperationManagementException;
+    Operation getNextPendingOperation(DeviceIdentifier deviceId) throws OperationManagementException;
 
-    public void updateOperation(DeviceIdentifier deviceId, Operation operation) throws OperationManagementException;
+    void updateOperation(DeviceIdentifier deviceId, Operation operation) throws OperationManagementException;
 
-    public void deleteOperation(int operationId) throws OperationManagementException;
+    void deleteOperation(int operationId) throws OperationManagementException;
 
-    public Operation getOperationByDeviceAndOperationId(DeviceIdentifier deviceId, int operationId)
+    Operation getOperationByDeviceAndOperationId(DeviceIdentifier deviceId, int operationId)
             throws OperationManagementException;
 
-    public List<? extends Operation> getOperationsByDeviceAndStatus(DeviceIdentifier identifier,
-            Operation.Status status) throws OperationManagementException, DeviceManagementException;
+    List<? extends Operation> getOperationsByDeviceAndStatus(DeviceIdentifier identifier,
+                                                             Operation.Status status)
+            throws OperationManagementException, DeviceManagementException;
 
-    public Operation getOperation(int operationId) throws OperationManagementException;
+    Operation getOperation(int operationId) throws OperationManagementException;
+
+    Activity getOperationByActivityId(String activity) throws OperationManagementException;
+
+    List<Operation> getOperationUpdatedAfter(long timestamp) throws OperationManagementException;
+
+    List<Activity> getActivitiesUpdatedAfter(long timestamp) throws OperationManagementException;
+
+    List<Activity> getActivitiesUpdatedAfter(long timestamp, int limit, int offset) throws OperationManagementException;
+
+    int getActivityCountUpdatedAfter(long timestamp) throws OperationManagementException;
 
 }

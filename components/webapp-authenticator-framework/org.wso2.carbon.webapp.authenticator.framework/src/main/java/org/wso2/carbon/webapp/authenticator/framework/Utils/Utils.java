@@ -21,15 +21,30 @@ package org.wso2.carbon.webapp.authenticator.framework.Utils;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.wso2.carbon.base.MultitenantConstants;
+import org.wso2.carbon.context.PrivilegedCarbonContext;
+import org.wso2.carbon.device.mgt.common.permission.mgt.Permission;
+import org.wso2.carbon.device.mgt.common.permission.mgt.PermissionManagementException;
+import org.wso2.carbon.device.mgt.common.permission.mgt.PermissionManagerService;
+import org.wso2.carbon.device.mgt.core.permission.mgt.PermissionManagerServiceImpl;
 import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.user.api.TenantManager;
 import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.user.core.service.RealmService;
 import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 import org.wso2.carbon.webapp.authenticator.framework.AuthenticationException;
+
+import java.util.Properties;
 
 public class Utils {
 
     private static final Log log = LogFactory.getLog(Utils.class);
+    private static PermissionManagerService permissionManagerService = PermissionManagerServiceImpl.getInstance();
+    private static Properties properties;
+    private static Permission permission;
+
+    public static final String URL_PROPERTY = "URL";
+    public static final String HTTP_METHOD_PROPERTY = "HTTP_METHOD";
 
     public static int getTenantIdOFUser(String username) throws AuthenticationException {
         int tenantId = 0;
@@ -47,4 +62,39 @@ public class Utils {
         }
         return tenantId;
     }
+
+    public static String getTenantDomain(int tenantId) throws AuthenticationException {
+        try {
+            PrivilegedCarbonContext.startTenantFlow();
+            PrivilegedCarbonContext ctx = PrivilegedCarbonContext.getThreadLocalCarbonContext();
+
+            RealmService realmService = (RealmService) ctx.getOSGiService(RealmService.class, null);
+            if (realmService == null) {
+                String msg = "RealmService is not initialized";
+                log.error(msg);
+                throw new AuthenticationException(msg);
+            }
+
+            return realmService.getTenantManager().getDomain(tenantId);
+
+        } catch (UserStoreException e) {
+            String msg = "User store not initialized";
+            log.error(msg);
+            throw new AuthenticationException(msg, e);
+        } finally {
+            PrivilegedCarbonContext.endTenantFlow();
+        }
+    }
+
+    public static String getResourceUri(String url, String httpMethod) throws PermissionManagementException {
+        properties = new Properties();
+        properties.put(URL_PROPERTY, url);
+        properties.put(HTTP_METHOD_PROPERTY, httpMethod);
+        permission = permissionManagerService.getPermission(properties);
+        if (permission != null) {
+            return permission.getContext() + "/1.0.0/1.0.0" + permission.getUrlTemplate() + ":" + permission.getMethod();
+        }
+        return null;
+    }
+
 }

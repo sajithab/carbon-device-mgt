@@ -18,20 +18,19 @@
   ~ under the License.
   -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 
     <parent>
         <groupId>org.wso2.carbon.devicemgt</groupId>
         <artifactId>dynamic-client-registration-feature</artifactId>
-        <version>0.9.2-SNAPSHOT</version>
+        <version>1.1.2-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <modelVersion>4.0.0</modelVersion>
     <artifactId>org.wso2.carbon.dynamic.client.registration.server.feature</artifactId>
     <packaging>pom</packaging>
-    <version>0.9.2-SNAPSHOT</version>
+    <version>1.1.2-SNAPSHOT</version>
     <name>WSO2 Carbon - Dynamic Client Registration Server Feature</name>
     <url>http://wso2.org</url>
     <description>This feature contains dynamic client registration features</description>
@@ -128,7 +127,7 @@
                             <adviceFile>
                                 <properties>
                                     <propertyDef>org.wso2.carbon.p2.category.type:server</propertyDef>
-                                    <propertyDef>org.eclipse.equinox.p2.type.group:false</propertyDef>
+                                    <propertyDef>org.eclipse.equinox.p2.type.group:true</propertyDef>
                                 </properties>
                             </adviceFile>
                             <bundles>
@@ -142,7 +141,7 @@
                                     com.googlecode.json-simple.wso2:json-simple:${json-simple.version}
                                 </bundleDef>
                                 <bundleDef>
-                                    org.json.wso2:json:${json.wso2.version}
+                                    org.json.wso2:json:${commons-json.version}
                                 </bundleDef>
                             </bundles>
                             <importFeatures>

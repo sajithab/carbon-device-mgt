@@ -32,7 +32,7 @@ import java.sql.SQLException;
 public class EnrolmentPersistenceTests extends BaseDeviceManagementTest {
 
     private static final Log log = LogFactory.getLog(EnrolmentPersistenceTests.class);
-    private EnrolmentDAO enrolmentDAO = DeviceManagementDAOFactory.getEnrollmentDAO();
+    private EnrollmentDAO enrollmentDAO = DeviceManagementDAOFactory.getEnrollmentDAO();
 
     @Test
     public void testAddEnrolment() {
@@ -41,13 +41,13 @@ public class EnrolmentPersistenceTests extends BaseDeviceManagementTest {
 
         /* Initializing source enrolment configuration bean to be tested */
         EnrolmentInfo source =
-                new EnrolmentInfo(null, owner, EnrolmentInfo.OwnerShip.BYOD,
+                new EnrolmentInfo(owner, EnrolmentInfo.OwnerShip.BYOD,
                         EnrolmentInfo.Status.CREATED);
 
         /* Adding dummy enrolment configuration to the device management metadata store */
         try {
             DeviceManagementDAOFactory.openConnection();
-            enrolmentDAO.addEnrollment(deviceId, source, TestDataHolder.SUPER_TENANT_ID);
+            enrollmentDAO.addEnrollment(deviceId, source, TestDataHolder.SUPER_TENANT_ID);
         } catch (DeviceManagementDAOException | SQLException e) {
             log.error("Error occurred while adding enrollment", e);
         } finally {
@@ -71,7 +71,7 @@ public class EnrolmentPersistenceTests extends BaseDeviceManagementTest {
         EnrolmentInfo enrolmentInfo = null;
         try {
             DeviceManagementDAOFactory.openConnection();
-            enrolmentInfo = enrolmentDAO.getEnrolment(deviceId, currentOwner, tenantId);
+            enrolmentInfo = enrollmentDAO.getEnrollment(deviceId, currentOwner, tenantId);
         } catch (SQLException e) {
             log.error("Error occurred while retrieving enrolment corresponding to device id '" + deviceId + "'", e);
         } finally {
@@ -83,7 +83,7 @@ public class EnrolmentPersistenceTests extends BaseDeviceManagementTest {
     @BeforeClass
     @Override
     public void init() throws Exception {
-        this.initDatSource();
+        this.initDataSource();
     }
 
 }

@@ -32,7 +32,6 @@ import org.wso2.carbon.policy.mgt.core.mgt.PolicyManager;
 import org.wso2.carbon.policy.mgt.core.mgt.impl.PolicyManagerImpl;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -55,7 +54,7 @@ public class DelegationTask implements Task {
 
         try {
             PolicyManager policyManager = new PolicyManagerImpl();
-            List<DeviceType> deviceTypes = policyManager.applyChangesMadeToPolicies();
+            List<String> deviceTypes = policyManager.applyChangesMadeToPolicies();
 
             PolicyCacheManagerImpl.getInstance().rePopulateCache();
 
@@ -66,20 +65,20 @@ public class DelegationTask implements Task {
                 DeviceManagementProviderService service = PolicyManagementDataHolder.getInstance()
                         .getDeviceManagementService();
                 List<Device> devices = new ArrayList<>();
-                for (DeviceType deviceType : deviceTypes) {
+                for (String deviceType : deviceTypes) {
                     try {
-                        devices.addAll(service.getAllDevices(deviceType.getName()));
+                        devices.addAll(service.getAllDevices(deviceType));
                     } catch (DeviceManagementException e) {
                         throw new PolicyManagementException("Error occurred while taking the devices", e);
                     }
                 }
-                HashMap<Integer, Integer> deviceIdPolicy = policyManager.getAppliedPolicyIdsDeviceIds();
+//                HashMap<Integer, Integer> deviceIdPolicy = policyManager.getAppliedPolicyIdsDeviceIds();
                 List<Device> toBeNotified = new ArrayList<>();
 
                 for (Device device : devices) {
-                    if (deviceIdPolicy.containsKey(device.getId())) {
-                        toBeNotified.add(device);
-                    }
+//                    if (deviceIdPolicy.containsKey(device.getId())) {
+                    toBeNotified.add(device);
+//                    }
                 }
                 if (!toBeNotified.isEmpty()) {
                     PolicyEnforcementDelegator enforcementDelegator = new PolicyEnforcementDelegatorImpl(toBeNotified);

@@ -20,10 +20,12 @@ package org.wso2.carbon.device.mgt.core.util;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.w3c.dom.Document;
-import org.wso2.carbon.context.PrivilegedCarbonContext;
-import org.wso2.carbon.device.mgt.common.Device;
-import org.wso2.carbon.device.mgt.common.DeviceManagementException;
-import org.wso2.carbon.device.mgt.common.TransactionManagementException;
+import org.wso2.carbon.base.MultitenantConstants;
+import org.wso2.carbon.device.mgt.common.*;
+import org.wso2.carbon.device.mgt.common.notification.mgt.NotificationManagementException;
+import org.wso2.carbon.device.mgt.common.operation.mgt.OperationManagementException;
+import org.wso2.carbon.device.mgt.core.config.DeviceConfigurationManager;
+import org.wso2.carbon.device.mgt.core.config.DeviceManagementConfig;
 import org.wso2.carbon.device.mgt.core.config.datasource.DataSourceConfig;
 import org.wso2.carbon.device.mgt.core.config.datasource.JNDILookupDefinition;
 import org.wso2.carbon.device.mgt.core.dao.DeviceManagementDAOException;
@@ -31,16 +33,20 @@ import org.wso2.carbon.device.mgt.core.dao.DeviceManagementDAOFactory;
 import org.wso2.carbon.device.mgt.core.dao.DeviceTypeDAO;
 import org.wso2.carbon.device.mgt.core.dao.util.DeviceManagementDAOUtil;
 import org.wso2.carbon.device.mgt.core.dto.DeviceType;
+import org.wso2.carbon.device.mgt.core.internal.DeviceManagementDataHolder;
+import org.wso2.carbon.user.api.TenantManager;
+import org.wso2.carbon.user.api.UserStoreException;
+import org.wso2.carbon.utils.CarbonUtils;
+import org.wso2.carbon.utils.ConfigurationContextService;
+import org.wso2.carbon.utils.NetworkUtils;
 
 import javax.sql.DataSource;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.File;
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 
 public final class DeviceManagerUtil {
 
@@ -51,6 +57,7 @@ public final class DeviceManagerUtil {
         factory.setNamespaceAware(true);
         try {
             DocumentBuilder docBuilder = factory.newDocumentBuilder();
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
             return docBuilder.parse(file);
         } catch (Exception e) {
             throw new DeviceManagementException("Error occurred while parsing file, while converting " +
@@ -94,29 +101,32 @@ public final class DeviceManagerUtil {
      * Adds a new device type to the database if it does not exists.
      *
      * @param typeName device type
+     * @param tenantId provider tenant Id
+     * @param isSharedWithAllTenants is this device type shared with all tenants.
      * @return status of the operation
      */
-    public static boolean registerDeviceType(String typeName) throws DeviceManagementException {
+    public static boolean registerDeviceType(String typeName, int tenantId, boolean isSharedWithAllTenants)
+            throws DeviceManagementException {
         boolean status;
         try {
             DeviceManagementDAOFactory.beginTransaction();
             DeviceTypeDAO deviceTypeDAO = DeviceManagementDAOFactory.getDeviceTypeDAO();
-            DeviceType deviceType = deviceTypeDAO.getDeviceType(typeName);
+            DeviceType deviceType = deviceTypeDAO.getDeviceType(typeName, tenantId);
             if (deviceType == null) {
-                DeviceType dt = new DeviceType();
-                dt.setName(typeName);
-                deviceTypeDAO.addDeviceType(dt);
+                deviceType = new DeviceType();
+                deviceType.setName(typeName);
+                deviceTypeDAO.addDeviceType(deviceType, tenantId, isSharedWithAllTenants);
             }
             DeviceManagementDAOFactory.commitTransaction();
             status = true;
         } catch (DeviceManagementDAOException e) {
             DeviceManagementDAOFactory.rollbackTransaction();
-            throw new DeviceManagementException("Error occurred while registering the device type '" +
-                    typeName + "'", e);
+            throw new DeviceManagementException("Error occurred while registering the device type '"
+                                                        + typeName + "'", e);
         } catch (TransactionManagementException e) {
             DeviceManagementDAOFactory.rollbackTransaction();
-            throw new DeviceManagementException("SQL occurred while registering the device type '" +
-                    typeName + "'", e);
+            throw new DeviceManagementException("SQL occurred while registering the device type '"
+                                                        + typeName + "'", e);
         } finally {
             DeviceManagementDAOFactory.closeConnection();
         }
@@ -129,26 +139,24 @@ public final class DeviceManagerUtil {
      * @param typeName device type
      * @return status of the operation
      */
-    public static boolean unregisterDeviceType(String typeName) throws DeviceManagementException {
+    public static boolean unregisterDeviceType(String typeName, int tenantId) throws DeviceManagementException {
         try {
             DeviceManagementDAOFactory.beginTransaction();
             DeviceTypeDAO deviceTypeDAO = DeviceManagementDAOFactory.getDeviceTypeDAO();
-            DeviceType deviceType = deviceTypeDAO.getDeviceType(typeName);
+            DeviceType deviceType = deviceTypeDAO.getDeviceType(typeName, tenantId);
             if (deviceType != null) {
-                DeviceType dt = new DeviceType();
-                dt.setName(typeName);
-                deviceTypeDAO.removeDeviceType(typeName);
+                deviceTypeDAO.removeDeviceType(typeName, tenantId);
             }
             DeviceManagementDAOFactory.commitTransaction();
             return true;
         } catch (DeviceManagementDAOException e) {
             DeviceManagementDAOFactory.rollbackTransaction();
             throw new DeviceManagementException("Error occurred while registering the device type '" +
-                    typeName + "'", e);
+                                                        typeName + "'", e);
         } catch (TransactionManagementException e) {
             DeviceManagementDAOFactory.rollbackTransaction();
             throw new DeviceManagementException("SQL occurred while registering the device type '" +
-                    typeName + "'", e);
+                                                        typeName + "'", e);
         } finally {
             DeviceManagementDAOFactory.closeConnection();
         }
@@ -162,9 +170,151 @@ public final class DeviceManagerUtil {
         return propertiesMap;
     }
 
-    public static int getTenantId() {
-        PrivilegedCarbonContext ctx = PrivilegedCarbonContext.getThreadLocalCarbonContext();
-        return ctx.getTenantId();
+    public static List<DeviceIdentifier> convertDevices(List<Device> devices) {
+
+        List<DeviceIdentifier> deviceIdentifiers = new ArrayList<>();
+        for (Device device : devices) {
+            DeviceIdentifier identifier = new DeviceIdentifier();
+            identifier.setId(device.getDeviceIdentifier());
+            identifier.setType(device.getType());
+            deviceIdentifiers.add(identifier);
+        }
+        return deviceIdentifiers;
     }
 
+    public static String getServerBaseHttpsUrl() {
+        String hostName = "localhost";
+        try {
+            hostName = NetworkUtils.getMgtHostName();
+        } catch (Exception ignored) {
+        }
+        String mgtConsoleTransport = CarbonUtils.getManagementTransport();
+        ConfigurationContextService configContextService =
+                DeviceManagementDataHolder.getInstance().getConfigurationContextService();
+        int port = CarbonUtils.getTransportPort(configContextService, mgtConsoleTransport);
+        int httpsProxyPort =
+                CarbonUtils.getTransportProxyPort(configContextService.getServerConfigContext(),
+                        mgtConsoleTransport);
+        if (httpsProxyPort > 0) {
+            port = httpsProxyPort;
+        }
+        return "https://" + hostName + ":" + port;
+    }
+
+    public static String getServerBaseHttpUrl() {
+        String hostName = "localhost";
+        try {
+            hostName = NetworkUtils.getMgtHostName();
+        } catch (Exception ignored) {
+        }
+        ConfigurationContextService configContextService =
+                DeviceManagementDataHolder.getInstance().getConfigurationContextService();
+        int port = CarbonUtils.getTransportPort(configContextService, "http");
+        int httpProxyPort =
+                CarbonUtils.getTransportProxyPort(configContextService.getServerConfigContext(),
+                        "http");
+        if (httpProxyPort > 0) {
+            port = httpProxyPort;
+        }
+        return "http://" + hostName + ":" + port;
+    }
+
+    /**
+     * returns the tenant Id of the specific tenant Domain
+     *
+     * @param tenantDomain
+     * @return
+     * @throws DeviceManagementException
+     */
+    public static int getTenantId(String tenantDomain) throws DeviceManagementException {
+        try {
+            if (MultitenantConstants.SUPER_TENANT_DOMAIN_NAME.equals(tenantDomain)) {
+                return MultitenantConstants.SUPER_TENANT_ID;
+            }
+            TenantManager tenantManager = DeviceManagementDataHolder.getInstance().getTenantManager();
+            int tenantId = tenantManager.getTenantId(tenantDomain);
+            if (tenantId == -1) {
+                throw new DeviceManagementException("invalid tenant Domain :" + tenantDomain);
+            }
+            return tenantId;
+        } catch (UserStoreException e) {
+            throw new DeviceManagementException("invalid tenant Domain :" + tenantDomain);
+        }
+    }
+
+    public static int validateActivityListPageSize(int limit) throws OperationManagementException {
+        if (limit == 0) {
+            DeviceManagementConfig deviceManagementConfig = DeviceConfigurationManager.getInstance().
+                    getDeviceManagementConfig();
+            if (deviceManagementConfig != null) {
+                return deviceManagementConfig.getPaginationConfiguration().getActivityListPageSize();
+            } else {
+                throw new OperationManagementException("Device-Mgt configuration has not initialized. Please check the " +
+                                                    "cdm-config.xml file.");
+            }
+        }
+        return limit;
+    }
+
+    public static PaginationRequest validateOperationListPageSize(PaginationRequest paginationRequest) throws
+                                                                                          OperationManagementException {
+        if (paginationRequest.getRowCount() == 0) {
+            DeviceManagementConfig deviceManagementConfig = DeviceConfigurationManager.getInstance().
+                    getDeviceManagementConfig();
+            if (deviceManagementConfig != null) {
+                paginationRequest.setRowCount(deviceManagementConfig.getPaginationConfiguration().
+                        getOperationListPageSize());
+            } else {
+                throw new OperationManagementException("Device-Mgt configuration has not initialized. Please check the " +
+                                                    "cdm-config.xml file.");
+            }
+        }
+        return paginationRequest;
+    }
+
+    public static PaginationRequest validateNotificationListPageSize(PaginationRequest paginationRequest) throws
+                                                                                       NotificationManagementException {
+        if (paginationRequest.getRowCount() == 0) {
+            DeviceManagementConfig deviceManagementConfig = DeviceConfigurationManager.getInstance().
+                    getDeviceManagementConfig();
+            if (deviceManagementConfig != null) {
+                paginationRequest.setRowCount(deviceManagementConfig.getPaginationConfiguration().
+                        getNotificationListPageSize());
+            } else {
+                throw new NotificationManagementException("Device-Mgt configuration has not initialized. Please check the " +
+                          "cdm-config.xml file.");
+            }
+        }
+        return paginationRequest;
+    }
+
+    public static PaginationRequest validateDeviceListPageSize(PaginationRequest paginationRequest) throws
+                                                                                             DeviceManagementException {
+        if (paginationRequest.getRowCount() == 0) {
+            DeviceManagementConfig deviceManagementConfig = DeviceConfigurationManager.getInstance().
+                    getDeviceManagementConfig();
+            if (deviceManagementConfig != null) {
+                paginationRequest.setRowCount(deviceManagementConfig.getPaginationConfiguration().
+                        getDeviceListPageSize());
+            } else {
+                throw new DeviceManagementException("Device-Mgt configuration has not initialized. Please check the " +
+                                                    "cdm-config.xml file.");
+            }
+        }
+        return paginationRequest;
+    }
+
+    public static int validateDeviceListPageSize(int limit) throws DeviceManagementException {
+        if (limit == 0) {
+            DeviceManagementConfig deviceManagementConfig = DeviceConfigurationManager.getInstance().
+                    getDeviceManagementConfig();
+            if (deviceManagementConfig != null) {
+                return deviceManagementConfig.getPaginationConfiguration().getDeviceListPageSize();
+            } else {
+                throw new DeviceManagementException("Device-Mgt configuration has not initialized. Please check the " +
+                                                    "cdm-config.xml file.");
+            }
+        }
+        return limit;
+    }
 }

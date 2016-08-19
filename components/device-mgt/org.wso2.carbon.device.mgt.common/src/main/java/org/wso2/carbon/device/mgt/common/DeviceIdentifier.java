@@ -17,11 +17,23 @@
  */
 package org.wso2.carbon.device.mgt.common;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+
 import java.io.Serializable;
 
+
+@ApiModel(value = "DeviceIdentifier", description = "This contains device details that is used to identify a device " +
+                                                    "uniquely.")
 public class DeviceIdentifier implements Serializable{
 
+    @JsonProperty(value = "id", required = true)
+    @ApiModelProperty(name = "id", value = "Identity of the device.", required = true)
     private String id;
+
+    @JsonProperty(value = "type", required = true)
+    @ApiModelProperty(name = "type", value = "Type of the device.", required = true)
     private String type;
 
     public DeviceIdentifier() {}
@@ -36,7 +48,7 @@ public class DeviceIdentifier implements Serializable{
     }
 
     public void setType(String type) {
-        this.type = type;
+        this.type = type.toLowerCase();
     }
     public String getId() {
         return id;
@@ -48,7 +60,7 @@ public class DeviceIdentifier implements Serializable{
 
     @Override
     public String toString() {
-        return "DeviceIdentifier{" +
+        return "deviceId {" +
                 "id='" + id + '\'' +
                 ", type='" + type + '\'' +
                 '}';

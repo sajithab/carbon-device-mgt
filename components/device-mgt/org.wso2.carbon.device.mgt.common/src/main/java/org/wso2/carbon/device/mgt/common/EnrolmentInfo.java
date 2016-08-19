@@ -18,8 +18,13 @@
  */
 package org.wso2.carbon.device.mgt.common;
 
+import io.swagger.annotations.ApiModel;
+import io.swagger.annotations.ApiModelProperty;
+
 import java.io.Serializable;
 
+@ApiModel(value = "EnrolmentInfo", description = "This class carries all information related to a devices enrollment" +
+                                                 " status.")
 public class EnrolmentInfo implements Serializable {
 
     private static final long serialVersionUID = 1998101712L;
@@ -32,19 +37,28 @@ public class EnrolmentInfo implements Serializable {
         BYOD, COPE
     }
 
+    @ApiModelProperty(name = "id", value = "ID of the device in the WSO2 EMM device information database.",
+                      required = true)
     private int id;
-    private Device device;
+    @ApiModelProperty(name = "dateOfEnrolment", value = "Date of the device enrollment. This value is not necessary.", required = false )
     private Long dateOfEnrolment;
+    @ApiModelProperty(name = "dateOfLastUpdate", value = "Date of the device's last update. This value is not necessary.", required = false )
     private Long dateOfLastUpdate;
+    @ApiModelProperty(name = "ownership", value = "Defines the ownership details. The ownership type can be any of the" +
+                                                  " following values.\n" +
+                                                  "BYOD - Bring your own device (BYOD).\n" +
+                                                  "COPE - Corporate owned personally enabled (COPE).", required = true )
     private OwnerShip ownership;
+    @ApiModelProperty(name = "status", value = "Current status of the device, such as whether the device " +
+                                               "is active, removed etc.", required = true )
     private Status status;
+    @ApiModelProperty(name = "owner", value = "The device owner's name.", required = true )
     private String owner;
 
     public EnrolmentInfo() {
     }
 
-    public EnrolmentInfo(Device device, String owner, OwnerShip ownership, Status status) {
-        this.device = device;
+    public EnrolmentInfo(String owner, OwnerShip ownership, Status status) {
         this.owner = owner;
         this.ownership = ownership;
         this.status = status;
@@ -98,14 +112,6 @@ public class EnrolmentInfo implements Serializable {
         this.owner = owner;
     }
 
-    public Device getDevice() {
-        return device;
-    }
-
-    public void setDevice(Device device) {
-        this.device = device;
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof EnrolmentInfo) {
@@ -118,4 +124,10 @@ public class EnrolmentInfo implements Serializable {
         }
         return false;
     }
+
+    @Override
+    public int hashCode() {
+        return owner.hashCode() ^ ownership.hashCode();
+    }
+
 }

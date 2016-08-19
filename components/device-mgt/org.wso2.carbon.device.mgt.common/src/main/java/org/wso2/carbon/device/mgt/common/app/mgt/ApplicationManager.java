@@ -20,6 +20,7 @@
 package org.wso2.carbon.device.mgt.common.app.mgt;
 
 import org.wso2.carbon.device.mgt.common.DeviceIdentifier;
+import org.wso2.carbon.device.mgt.common.operation.mgt.Activity;
 import org.wso2.carbon.device.mgt.common.operation.mgt.Operation;
 
 import java.util.List;
@@ -66,8 +67,12 @@ public interface ApplicationManager {
             throws ApplicationManagementException;
 
 
-    void installApplication(Operation operation, List<DeviceIdentifier> deviceIdentifiers)
+    Activity installApplicationForDevices(Operation operation, List<DeviceIdentifier> deviceIdentifiers)
             throws ApplicationManagementException;
 
+    Activity installApplicationForUsers(Operation operation, List<String> userNameList)
+            throws ApplicationManagementException;
 
+    Activity installApplicationForUserRoles(Operation operation, List<String> userRoleList)
+            throws ApplicationManagementException;
 }

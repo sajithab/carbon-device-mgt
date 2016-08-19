@@ -20,6 +20,7 @@ package org.wso2.carbon.policy.mgt.core.dao;
 
 import org.wso2.carbon.device.mgt.common.Device;
 import org.wso2.carbon.policy.mgt.common.Criterion;
+import org.wso2.carbon.policy.mgt.common.DeviceGroupWrapper;
 import org.wso2.carbon.policy.mgt.common.Policy;
 import org.wso2.carbon.policy.mgt.common.PolicyCriterion;
 
@@ -30,7 +31,7 @@ public interface PolicyDAO {
 
     Policy addPolicy(Policy policy) throws PolicyManagerDAOException;
 
-    Policy addPolicy(String deviceType, Policy policy) throws PolicyManagerDAOException;
+//    Policy addPolicyToDeviceType(String deviceType, Policy policy) throws PolicyManagerDAOException;
 
     /**
      * This method is used to add/update the roles associated with the policy.
@@ -41,6 +42,8 @@ public interface PolicyDAO {
      */
     Policy addPolicyToRole(List<String> roleNames, Policy policy) throws PolicyManagerDAOException;
 
+    Policy updateRolesOfPolicy(List<String> rolesToAdd, Policy policy) throws PolicyManagerDAOException;
+
     /**
      * This method is used to add/update the users associated with the policy.
      * @param usernameList - List of the users that needs to be applied
@@ -50,7 +53,13 @@ public interface PolicyDAO {
      */
     Policy addPolicyToUser(List<String> usernameList, Policy policy) throws PolicyManagerDAOException;
 
+    Policy updateUserOfPolicy(List<String> usersToAdd, Policy policy) throws PolicyManagerDAOException;
+
     Policy addPolicyToDevice(List<Device> devices, Policy policy) throws PolicyManagerDAOException;
+
+    void addDeviceGroupsToPolicy(Policy policy) throws PolicyManagerDAOException;
+
+    List<DeviceGroupWrapper> getDeviceGroupsOfPolicy(int policyId) throws PolicyManagerDAOException;
 
     boolean updatePolicyPriorities(List<Policy> policies) throws PolicyManagerDAOException;
 
@@ -114,6 +123,8 @@ public interface PolicyDAO {
 
     boolean deleteAllPolicyRelatedConfigs(int policyId) throws PolicyManagerDAOException;
 
+    boolean deleteCriteriaAndDeviceRelatedConfigs(int policyId) throws PolicyManagerDAOException;
+
     List<String> getPolicyAppliedRoles(int policyId) throws PolicyManagerDAOException;
 
     List<String> getPolicyAppliedUsers(int policyId) throws PolicyManagerDAOException;
@@ -134,7 +145,7 @@ public interface PolicyDAO {
 
     Policy getAppliedPolicy(int deviceId, int enrollmentId) throws PolicyManagerDAOException;
 
-    HashMap<Integer, Integer> getAppliedPolicyIds(List<Integer> deviceIds) throws PolicyManagerDAOException;
+    HashMap<Integer, Integer> getAppliedPolicyIds() throws PolicyManagerDAOException;
 
     HashMap<Integer, Integer> getAppliedPolicyIdsDeviceIds() throws PolicyManagerDAOException;
 }

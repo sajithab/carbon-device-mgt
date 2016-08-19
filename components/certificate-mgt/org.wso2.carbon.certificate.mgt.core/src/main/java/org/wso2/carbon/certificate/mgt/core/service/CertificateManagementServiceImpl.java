@@ -20,16 +20,24 @@ package org.wso2.carbon.certificate.mgt.core.service;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.wso2.carbon.certificate.mgt.core.dao.CertificateDAO;
+import org.wso2.carbon.certificate.mgt.core.dao.CertificateManagementDAOException;
+import org.wso2.carbon.certificate.mgt.core.dao.CertificateManagementDAOFactory;
+import org.wso2.carbon.certificate.mgt.core.dto.CertificateResponse;
 import org.wso2.carbon.certificate.mgt.core.dto.SCEPResponse;
+import org.wso2.carbon.certificate.mgt.core.exception.CertificateManagementException;
 import org.wso2.carbon.certificate.mgt.core.exception.KeystoreException;
+import org.wso2.carbon.certificate.mgt.core.exception.TransactionManagementException;
 import org.wso2.carbon.certificate.mgt.core.impl.CertificateGenerator;
 import org.wso2.carbon.certificate.mgt.core.impl.KeyStoreReader;
-import org.wso2.carbon.certificate.mgt.core.util.ConfigurationUtil;
+import org.wso2.carbon.certificate.mgt.core.util.CertificateManagementConstants;
+import org.wso2.carbon.certificate.mgt.core.util.CertificateManagerUtil;
 
 import java.io.InputStream;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.sql.SQLException;
 import java.util.List;
 
 public class CertificateManagementServiceImpl implements CertificateManagementService {
@@ -39,10 +47,10 @@ public class CertificateManagementServiceImpl implements CertificateManagementSe
     private static KeyStoreReader keyStoreReader;
     private static CertificateGenerator certificateGenerator;
 
-    private CertificateManagementServiceImpl() {}
+    private CertificateManagementServiceImpl() {
+    }
 
     public static CertificateManagementServiceImpl getInstance() {
-
         if (certificateManagementServiceImpl == null) {
             certificateManagementServiceImpl = new CertificateManagementServiceImpl();
             keyStoreReader = new KeyStoreReader();
@@ -72,7 +80,7 @@ public class CertificateManagementServiceImpl implements CertificateManagementSe
     }
 
     public byte[] getCACapsSCEP() {
-        return ConfigurationUtil.POST_BODY_CA_CAPS.getBytes();
+        return CertificateManagementConstants.POST_BODY_CA_CAPS.getBytes();
     }
 
     public byte[] getPKIMessageSCEP(InputStream inputStream) throws KeystoreException {
@@ -80,8 +88,8 @@ public class CertificateManagementServiceImpl implements CertificateManagementSe
     }
 
     public X509Certificate generateCertificateFromCSR(PrivateKey privateKey,
-                                                              PKCS10CertificationRequest request,
-                                                              String issueSubject) throws KeystoreException {
+                                                      PKCS10CertificationRequest request,
+                                                      String issueSubject) throws KeystoreException {
         return certificateGenerator.generateCertificateFromCSR(privateKey, request, issueSubject);
     }
 
@@ -93,6 +101,15 @@ public class CertificateManagementServiceImpl implements CertificateManagementSe
         return certificateGenerator.verifySignature(headerSignature);
     }
 
+    public CertificateResponse verifyPEMSignature(X509Certificate requestCertificate) throws KeystoreException {
+        return certificateGenerator.verifyPEMSignature(requestCertificate);
+    }
+
+    @Override
+    public CertificateResponse verifySubjectDN(String requestDN) throws KeystoreException {
+        return certificateGenerator.verifyCertificateDN(requestDN);
+    }
+
     public X509Certificate extractCertificateFromSignature(String headerSignature) throws KeystoreException {
         return certificateGenerator.extractCertificateFromSignature(headerSignature);
     }
@@ -100,4 +117,121 @@ public class CertificateManagementServiceImpl implements CertificateManagementSe
     public String extractChallengeToken(X509Certificate certificate) {
         return certificateGenerator.extractChallengeToken(certificate);
     }
+
+    public X509Certificate getSignedCertificateFromCSR(String binarySecurityToken) throws KeystoreException {
+        return certificateGenerator.getSignedCertificateFromCSR(binarySecurityToken);
+    }
+
+    public CertificateResponse getCertificateBySerial(String serial) throws KeystoreException {
+        return keyStoreReader.getCertificateBySerial(serial);
+    }
+
+    public void saveCertificate(List<org.wso2.carbon.certificate.mgt.core.bean.Certificate> certificate)
+            throws KeystoreException {
+        certificateGenerator.saveCertInKeyStore(certificate);
+    }
+
+    public X509Certificate pemToX509Certificate(String pem) throws KeystoreException {
+        return certificateGenerator.pemToX509Certificate(pem);
+    }
+
+    public CertificateResponse retrieveCertificate(String serialNumber) throws CertificateManagementException {
+        CertificateDAO certificateDAO;
+        try {
+            CertificateManagementDAOFactory.openConnection();
+            certificateDAO = CertificateManagementDAOFactory.getCertificateDAO();
+            return certificateDAO.retrieveCertificate(serialNumber);
+        } catch (SQLException e) {
+            String msg = "Error occurred while opening a connection to the underlying data source";
+            throw new CertificateManagementException(msg, e);
+        } catch (CertificateManagementDAOException e) {
+            String msg = "Error occurred while looking up for the certificate carrying the serial number '" +
+                    serialNumber + "' in the underlying certificate repository";
+            throw new CertificateManagementException(msg, e);
+        } finally {
+            CertificateManagementDAOFactory.closeConnection();
+        }
+    }
+
+    @Override
+    public PaginationResult getAllCertificates(int rowNum, int limit) throws CertificateManagementException {
+        try {
+            CertificateManagementDAOFactory.openConnection();
+            CertificateDAO certificateDAO = CertificateManagementDAOFactory.getCertificateDAO();
+            return certificateDAO.getAllCertificates(rowNum, CertificateManagerUtil.validateCertificateListPageSize(limit));
+        } catch (SQLException e) {
+            String msg = "Error occurred while opening a connection to the underlying data source";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } catch (CertificateManagementDAOException e) {
+            String msg = "Error occurred while looking up for the list of certificates managed in the underlying " +
+                         "certificate repository";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } finally {
+            CertificateManagementDAOFactory.closeConnection();
+        }
+    }
+
+    @Override
+    public boolean removeCertificate(String serialNumber) throws CertificateManagementException {
+        try {
+            CertificateManagementDAOFactory.beginTransaction();
+            CertificateDAO certificateDAO = CertificateManagementDAOFactory.getCertificateDAO();
+            boolean status = certificateDAO.removeCertificate(serialNumber);
+            CertificateManagementDAOFactory.commitTransaction();
+            return status;
+        } catch (TransactionManagementException e) {
+            String msg = "Error occurred while removing certificate carrying serial number '" + serialNumber + "'";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } catch (CertificateManagementDAOException e) {
+            CertificateManagementDAOFactory.rollbackTransaction();
+            String msg = "Error occurred while removing the certificate carrying serial number '" + serialNumber +
+                    "' from the certificate repository";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        }
+    }
+
+    @Override
+    public List<CertificateResponse> getCertificates() throws CertificateManagementException {
+        try {
+            CertificateManagementDAOFactory.openConnection();
+            CertificateDAO certificateDAO = CertificateManagementDAOFactory.getCertificateDAO();
+            return certificateDAO.getAllCertificates();
+        } catch (SQLException e) {
+            String msg = "Error occurred while opening a connection to the underlying data source";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } catch (CertificateManagementDAOException e) {
+            String msg = "Error occurred while looking up for the list of certificates managed in the " +
+                    "underlying certificate repository";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } finally {
+            CertificateManagementDAOFactory.closeConnection();
+        }
+    }
+
+    @Override
+    public List<CertificateResponse> searchCertificates(String serialNumber) throws CertificateManagementException {
+        try {
+            CertificateManagementDAOFactory.openConnection();
+            CertificateDAO certificateDAO = CertificateManagementDAOFactory.getCertificateDAO();
+            return certificateDAO.searchCertificate(serialNumber);
+        } catch (SQLException e) {
+            String msg = "Error occurred while opening a connection to the underlying data source";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } catch (CertificateManagementDAOException e) {
+            String msg = "Error occurred while searching for the list of certificates carrying the serial number '" +
+                    serialNumber + "' in the underlying certificate repository";
+            log.error(msg, e);
+            throw new CertificateManagementException(msg, e);
+        } finally {
+            CertificateManagementDAOFactory.closeConnection();
+        }
+    }
+
 }

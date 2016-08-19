@@ -160,8 +160,14 @@ public class ComplianceDecisionPointImpl implements ComplianceDecisionPoint {
                 }
                 policyOperation.setProfileOperations(profileOperationList);
                 policyOperation.setPayLoad(policyOperation.getProfileOperations());
+
+                //TODO: Fix this properly later adding device type to be passed in when the task manage executes "addOperations()"
+                String type = null;
+                if (deviceIdentifiers.size() > 0) {
+                    type = deviceIdentifiers.get(0).getType();
+                }
                 PolicyManagementDataHolder.getInstance().getDeviceManagementService().
-                        addOperation(policyOperation, deviceIdentifiers);
+                        addOperation(type, policyOperation, deviceIdentifiers);
 
             }
 
@@ -174,18 +180,18 @@ public class ComplianceDecisionPointImpl implements ComplianceDecisionPoint {
     @Override
     public void markDeviceAsNoneCompliance(DeviceIdentifier deviceIdentifier) throws PolicyComplianceException {
 
-        try {
-            DeviceManagementProviderService service = this.getDeviceManagementProviderService();
-            Device device = service.getDevice(deviceIdentifier);
-            service.setStatus(deviceIdentifier, device.getEnrolmentInfo().getOwner(),
-                    EnrolmentInfo.Status.BLOCKED);
-
-        } catch (DeviceManagementException e) {
-            String msg = "Error occurred while marking device as none compliance " + deviceIdentifier.getId() + " - " +
-                    deviceIdentifier.getType();
-            log.error(msg, e);
-            throw new PolicyComplianceException(msg, e);
-        }
+//        try {
+//            DeviceManagementProviderService service = this.getDeviceManagementProviderService();
+//            Device device = service.getDevice(deviceIdentifier);
+//            service.setStatus(deviceIdentifier, device.getEnrolmentInfo().getOwner(),
+//                    EnrolmentInfo.Status.BLOCKED);
+//
+//        } catch (DeviceManagementException e) {
+//            String msg = "Error occurred while marking device as none compliance " + deviceIdentifier.getId() + " - " +
+//                    deviceIdentifier.getType();
+//            log.error(msg, e);
+//            throw new PolicyComplianceException(msg, e);
+//        }
     }
 
     @Override
@@ -247,7 +253,7 @@ public class ComplianceDecisionPointImpl implements ComplianceDecisionPoint {
         Policy policy = complianceData.getPolicy();
         String compliance = this.getNoneComplianceRule(policy);
 
-        if (compliance.equals("")) {
+        if ("".equals(compliance)) {
             String msg = "Compliance rule is empty for the policy " + policy.getPolicyName() + ". Therefore " +
                     "Monitoring Engine cannot run.";
             throw new PolicyComplianceException(msg);

@@ -18,9 +18,11 @@
  */
 package org.wso2.carbon.webapp.authenticator.framework;
 
+import org.wso2.carbon.certificate.mgt.core.scep.SCEPManager;
 import org.wso2.carbon.certificate.mgt.core.service.CertificateManagementService;
-import org.wso2.carbon.device.mgt.core.scep.SCEPManager;
 import org.wso2.carbon.identity.oauth2.OAuth2TokenValidationService;
+import org.wso2.carbon.registry.core.service.TenantRegistryLoader;
+import org.wso2.carbon.registry.indexing.service.TenantIndexingLoader;
 import org.wso2.carbon.user.core.service.RealmService;
 
 public class AuthenticatorFrameworkDataHolder {
@@ -30,6 +32,8 @@ public class AuthenticatorFrameworkDataHolder {
     private CertificateManagementService certificateManagementService;
     private SCEPManager scepManager;
     private OAuth2TokenValidationService oAuth2TokenValidationService;
+    private TenantIndexingLoader tenantIndexingLoader;
+    private TenantRegistryLoader tenantRegistryLoader;
 
     private static AuthenticatorFrameworkDataHolder
             thisInstance = new AuthenticatorFrameworkDataHolder();
@@ -81,15 +85,32 @@ public class AuthenticatorFrameworkDataHolder {
         this.scepManager = scepManager;
     }
 
-    public OAuth2TokenValidationService getoAuth2TokenValidationService() {
+    public OAuth2TokenValidationService getOAuth2TokenValidationService() {
         if (oAuth2TokenValidationService == null) {
             throw new IllegalStateException("OAuth2TokenValidation service is not initialized properly");
         }
         return oAuth2TokenValidationService;
     }
 
-    public void setoAuth2TokenValidationService(
+    public void setOAuth2TokenValidationService(
             OAuth2TokenValidationService oAuth2TokenValidationService) {
         this.oAuth2TokenValidationService = oAuth2TokenValidationService;
+    }
+
+    public TenantIndexingLoader getTenantIndexingLoader() {
+        return tenantIndexingLoader;
+    }
+
+    public void setTenantIndexingLoader(
+            TenantIndexingLoader tenantIndexingLoader) {
+        this.tenantIndexingLoader = tenantIndexingLoader;
+    }
+
+    public void setTenantRegistryLoader(TenantRegistryLoader tenantRegistryLoader) {
+        this.tenantRegistryLoader = tenantRegistryLoader;
+    }
+
+    public TenantRegistryLoader getTenantRegistryLoader() {
+        return  tenantRegistryLoader;
     }
 }
